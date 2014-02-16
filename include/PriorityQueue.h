@@ -72,7 +72,7 @@ public:
 
 		// Copy values
 		// arrays are related, so we can do it more efficiently than std::copy
-		for(int i=0; i < mSize; i++) {
+		for(size_t i=0; i < mSize; i++) {
 			mItems[i] = src.mItems[i];
 			mPriorities[i] = src.mPriorities[i];
 		}
@@ -128,11 +128,13 @@ public:
 
 	/// Destructor
 	virtual ~PriorityQueue() {
-		//delete mItems;
-		//delete mPriorities;
-		mItemsAllocator.destroy(mItems);
+		//delete [] mItems;
+		//delete [] mPriorities;
+		for(size_t i = 0; i < mSize; i++) {
+			mItemsAllocator.destroy(mItems + i);
+			mPrioritiesAllocator.destroy(mPriorities + i);
+		}
 		mItemsAllocator.deallocate(mItems, mCapacity);
-		mPrioritiesAllocator.destroy(mPriorities);
 		mPrioritiesAllocator.deallocate(mPriorities, mCapacity);
 	}
 
@@ -181,7 +183,10 @@ public:
 	void pop() {
 		// Swap the root with the last element
 		swapNodes(0, mSize - 1);
+		mItemsAllocator.destroy(mItems + (mSize - 1));
+		mPrioritiesAllocator.destroy(mPriorities + (mSize - 1));
 		mSize--;
+
 		checkSize();
 
 		// And sink the new root to it's proper place.
@@ -240,6 +245,8 @@ private:
 	std::allocator<int> mPrioritiesAllocator;
 
 	void allocateArrays() {
+		//mItems = new T[mCapacity];
+		//mPriorities = new int[mCapacity];
 		mItems = mItemsAllocator.allocate(mCapacity);
 		mPriorities = mPrioritiesAllocator.allocate(mCapacity);
 	}
@@ -271,13 +278,18 @@ private:
 		// Create new array and copy values
 		T* newItems = mItemsAllocator.allocate(newCapacity);
 		int* newPriorities = mPrioritiesAllocator.allocate(newCapacity);
-		for(int i=0; i < mSize; i++) {
+		for(size_t i=0; i < mSize; i++) {
 			newItems[i] = mItems[i];
+			mItemsAllocator.destroy(mItems+i);
+			newPriorities[i] = mPriorities[i];
+			mPrioritiesAllocator.destroy(mPriorities+i);
 		}
 
 		// delete old array and swap new one in
 		mItemsAllocator.deallocate(mItems, mCapacity);
 		mPrioritiesAllocator.deallocate(mPriorities, mCapacity);
+		//delete [] mItems;
+		//delete[] mPriorities;
 
 		mItems = newItems;
 		mPriorities = newPriorities;

@@ -34,7 +34,7 @@ namespace sportsball {
 static const bool DEBUG = true;
 static const int MILLIS_PER_SECOND = 1000;
 
-static const string INSERT_PLAYER_TOKEN = "GO!";
+static const string SUB_PLAYER_TOKEN = "GO!";
 static const char INLINE_DELIMITER = '/';
 
 /**
@@ -69,11 +69,12 @@ int playBall(string dataFile, size_t initialCapacity, size_t stepSize) {
 	} else {
 		cout << "SPORTSBALL!" << endl;
 
-		PriorityQueue<shared_ptr<string> >* playerQueue = new PriorityQueue<shared_ptr<string> >(initialCapacity, stepSize);
+		PriorityQueue<shared_ptr<string> >
+			playerQueue(initialCapacity, stepSize);
 		string line, priorityString;
 		int priority = 0;
 		int lineNumber = 0;
-		istringstream* lineStream = new istringstream();
+		istringstream lineStream;
 
 		try {
 
@@ -83,28 +84,28 @@ int playBall(string dataFile, size_t initialCapacity, size_t stepSize) {
 					lineNumber++;
 					continue;
 				}
-				if(line == INSERT_PLAYER_TOKEN) {
+				if(line == SUB_PLAYER_TOKEN) {
 					// If there is a player to poll
-					if(!playerQueue->empty()) {
+					if(!playerQueue.empty()) {
 						// Print their name
-						shared_ptr<string> pName = playerQueue->top();
+						shared_ptr<string> pName = playerQueue.top();
 						cout << *pName << " enters the game." << endl;
 						// and remove them
-						playerQueue->pop();
+						playerQueue.pop();
 						pName.reset(); // discard our pointer to the string
 					} else {
 						cout << "No one is ready!" << endl;
 					}
 				} else {
-					lineStream->str(line); // replace the current string
-					lineStream->clear(); // reset flags
+					lineStream.str(line); // replace the current string
+					lineStream.clear(); // reset flags
 
 					std::shared_ptr<std::string> pName(new string);
 
 					// We can use getLine to parse up to our delimiter
-					getline(*lineStream, *pName, INLINE_DELIMITER);
+					getline(lineStream, *pName, INLINE_DELIMITER);
 					// Then extract the rest of the line normally
-					getline(*lineStream, priorityString);
+					getline(lineStream, priorityString);
 
 					// Attempt to convert `priorityString` to an int
 					// (we catch exceptions further down)
@@ -116,26 +117,26 @@ int playBall(string dataFile, size_t initialCapacity, size_t stepSize) {
 					}
 
 					// Cool. That worked. Now queue the player.
-					playerQueue->insert(pName, priority);
+					playerQueue.insert(pName, priority);
 					pName.reset();
 					priorityString.clear();
 				}
 
 				if(sportsball::DEBUG) {
-					cout << "size: " << playerQueue->getSize() << "; "
+					cout << "size: " << playerQueue.getSize() << "; "
 							<< "capacity: "
-							<< playerQueue->getCapacity() << "; "
+							<< playerQueue.getCapacity() << "; "
 							<< "numResizes: "
-							<< playerQueue->getNumResizes() << "." << endl;
+							<< playerQueue.getNumResizes() << "." << endl;
 				}
 
 				lineNumber++; // track line number
 			}
 
 			cout << "---" << endl;
-			cout << "At the end, there were " << playerQueue->getSize()
+			cout << "At the end, there were " << playerQueue.getSize()
 					<< " players left." << endl;
-			cout << "The array was resized " << playerQueue->getNumResizes()
+			cout << "The array was resized " << playerQueue.getNumResizes()
 					<< " times." << endl;
 
 			returnVal = 0;
@@ -150,9 +151,6 @@ int playBall(string dataFile, size_t initialCapacity, size_t stepSize) {
 			cout << e.what();
 		}
 
-		// Cleanup
-		delete lineStream;
-		delete playerQueue;
 	}
 	return returnVal;
 }
