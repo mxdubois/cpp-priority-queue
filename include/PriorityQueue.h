@@ -8,10 +8,14 @@
 #ifndef PRIORITYQUEUE_H_
 #define PRIORITYQUEUE_H_
 
+#include <stdexcept>;
+using std::runtime_error;
 #include <memory>
 using std::allocator;
 #include <utility>
 using std::swap;
+#include <limits>
+using std::numeric_limits;
 
 // NOTES:
 // - I've implemented the class in the header to simplify submission.
@@ -28,6 +32,8 @@ struct PriorityQueueBase {
 	// STATIC VARS
 	static const size_t DEFAULT_INITIAL_CAPACITY = 30;
 	static const size_t DEFAULT_STEP_SIZE = 10;
+	static const size_t MAX_ID = numeric_limits<size_t>::max();
+	static const bool DEBUG = false;
 };
 
 /**
@@ -47,6 +53,7 @@ public:
 				  size_t stepSize=DEFAULT_STEP_SIZE)
 		: mItemsAllocator(),
 		  mPrioritiesAllocator(),
+		  mIdsAllocator(),
 		  mInitialCapacity(initialCapacity),
 		  mStepSize(stepSize),
 		  mStepSize2x(2*mStepSize),
@@ -64,6 +71,7 @@ public:
 	PriorityQueue(PriorityQueue& src)
 		: mItemsAllocator(),
 		  mPrioritiesAllocator(),
+		  mIdsAllocator(),
 		  mInitialCapacity(src.mInitialCapacity),
 		  mCapacity(src.mCapacity),
 		  mSize(src.mSize),
@@ -76,8 +84,9 @@ public:
 		// Copy values
 		// arrays are related, so we can do it more efficiently than std::copy
 		for(size_t i=0; i < mSize; i++) {
-			mItems[i] = src.mItems[i];
-			mPriorities[i] = src.mPriorities[i];
+			mItems[i] = mItemsAllocator.construct(src.mItems[i]);
+			mPriorities[i] = mPrioritiesAllocator.construct(src.mPriorities[i]);
+			mIds[i] = mIdsAllocator.construct(src.mIds[i]);
 		}
 	}
 
@@ -128,6 +137,7 @@ public:
 		swap(first.mPriorities, second.mPriorities);
 		swap(first.mItemsAllocator, second.mItemsAllocator);
 		swap(first.mPrioritiesAllocator, second.mPrioritiesAllocator);
+		swap(first.mIdsAllocator, second.mIdsAllocator);
 		swap(first.mCapacity, second.mCapacity);
 	}
 
@@ -153,11 +163,14 @@ public:
 			resize(mCapacity + mStepSize);
 		}
 
+		// Consolidate ids if necessary (rare occurrence)
+		checkIdOverflow();
+
 		// Insert the item at the end and swim it up to it's place
 		size_t i = mSize;
-		mItemsAllocator.construct(mItems+i, item);
-		mPrioritiesAllocator.construct(mPriorities+i, score);
-		mSize++; // increment size before swim for proper state
+		createNode(i, item, score, mNextId);
+		mNextId++;
+		mSize++;
 		swim(i);
 	}
 
@@ -240,23 +253,28 @@ private:
 	allocator<T> mItemsAllocator;
 	int* mPriorities;
 	allocator<int> mPrioritiesAllocator;
+	size_t* mIds;
+	allocator<size_t> mIdsAllocator;
 
 	size_t mInitialCapacity;
 	size_t mStepSize;
 	size_t mStepSize2x; // cache this for performance
 	size_t mCapacity;
 	size_t mSize;
+	size_t mNextId;
 	int mNumResizes;
 
 
 	void allocateArrays() {
 		mItems = mItemsAllocator.allocate(mCapacity);
 		mPriorities = mPrioritiesAllocator.allocate(mCapacity);
+		mIds = mIdsAllocator.allocate(mCapacity);
 	}
 
 	void deallocateArrays() {
 		mItemsAllocator.deallocate(mItems, mCapacity);
 		mPrioritiesAllocator.deallocate(mPriorities, mCapacity);
+		mIdsAllocator.deallocate(mIds, mCapacity);
 	}
 
 	void destroyAllNodes() {
@@ -271,6 +289,13 @@ private:
 	void destroyNode(size_t i) {
 		mItemsAllocator.destroy(mItems+i);
 		mPrioritiesAllocator.destroy(mPriorities+i);
+		mIdsAllocator.destroy(mIds+i);
+	}
+
+	void createNode(size_t i, T item, int priority, size_t id) {
+		mItemsAllocator.construct(mItems+i, item);
+		mPrioritiesAllocator.construct(mPriorities+i, priority);
+		mIdsAllocator.construct(mIds+i, id);
 	}
 
 	/**
@@ -279,6 +304,7 @@ private:
 	void swapNodes(size_t a, size_t b) {
 		swap(mItems[a], mItems[b]);
 		swap(mPriorities[a], mPriorities[b]);
+		swap(mIds[a], mIds[b]);
 	}
 
 	/**
@@ -301,6 +327,32 @@ private:
 		}
 	}
 
+	/**
+	 * Since `nextId` increases over the lifetime of the queue,
+	 * irrespective of the current number of elements, it's possible for
+	 * `nextId` to overflow. However, there will never be more than the
+	 * max value of size_t elements in the queue, so we can consolidate
+	 * ids in the event of an impending overflow.
+	 */
+	void checkIdOverflow() {
+		// If the next increment of `nextId` would overflow
+		// and we can consolidate
+		if(mNextId == MAX_ID && mSize < MAX_ID) {
+			consolidateIds();
+		}
+	}
+
+	/**
+	 * Consolidates the ids for all nodes into the range [0, mSize).
+	 */
+	void consolidateIds() {
+		// TODO efficiently sort pointers to items in mIds in an aux array
+		// then iterate through aux and assign 0 <= i < mSize
+		throw runtime_error(
+				string("PriorityQueue::consolidateIds() has been left") +
+				string(" as an exercise to the reader.") );
+	}
+
 	void printContents() {
 		cout << "Array contents: " << endl;
 				for (size_t i = 0; i < mSize; i++)
@@ -314,22 +366,23 @@ private:
 	 * Resizes the backing array if necessary.
 	 */
 	void resize(size_t newCapacity) {
-		cout << "RESIZING from " << mCapacity << " to " << newCapacity
-				<< " with " << mSize << " items." << endl;
+
+		if(PriorityQueueBase::DEBUG) {
+			cout << "RESIZING from " << mCapacity << " to " << newCapacity
+					<< " with " << mSize << " items." << endl;
+		}
 
 		// Allocate new arrays
 		T* newItems = mItemsAllocator.allocate(newCapacity);
 		int* newPriorities = mPrioritiesAllocator.allocate(newCapacity);
+		size_t* newIds = mIdsAllocator.allocate(newCapacity);
 
-		// Copy/Move values
+		// Copy values to new array and destroy original values.
 		for(size_t i=0; i < mSize; i++) {
-			// Swap item to the new array
 			mItemsAllocator.construct(newItems+i,mItems[i]);
-			mItemsAllocator.destroy(mItems+i);
-
-			// Copy the priority and destroy the original
-			mPrioritiesAllocator.construct(mPriorities+i,mPriorities[i]);
-			mPrioritiesAllocator.destroy(mPriorities+i);
+			mPrioritiesAllocator.construct(newPriorities+i,mPriorities[i]);
+			mIdsAllocator.construct(newIds+i, mIds[i]);
+			destroyNode(i);
 		}
 
 		// Deallocate old arrays
@@ -338,6 +391,7 @@ private:
 		// update pointers to new arrays
 		mItems = newItems;
 		mPriorities = newPriorities;
+		mIds = newIds;
 		mCapacity = newCapacity;
 
 		mNumResizes++;
@@ -358,9 +412,9 @@ private:
 			size_t rightIdx = rightIdxOf(i);
 
 			// If the right child has greater priority
-			if(mPriorities[rightIdx] > mPriorities[leftIdx]) {
+			if(greaterPriority(rightIdx, leftIdx)) {
 				destIdx = rightIdx;
-			} else if(mPriorities[leftIdx] > mPriorities[rightIdx]) {
+			} else if(greaterPriority(leftIdx, rightIdx)) {
 				// if the left child has greater priority
 				destIdx = leftIdx;
 			}
@@ -383,12 +437,23 @@ private:
 		size_t parentIdx = parentIdxOf(i);
 
 		// While `i` is not the root and `i`'s parent has lower priority
-		while(parentIdx != i && mPriorities[parentIdx] < mPriorities[i]) {
+		while(parentIdx != i && greaterPriority(i, parentIdx)) {
 			// Swap value at `i` with value at parent
 			swapNodes(parentIdx, i);
 			i = parentIdx;
 			parentIdx = parentIdxOf(i);
 		}
+	}
+
+	/**
+	 * Returns true if `a` has greater priority than `b`
+	 * TODO a max function could be more useful/efficient
+	 */
+	bool greaterPriority(size_t a, size_t b) {
+		bool greaterPriority = mPriorities[a] > mPriorities[b];
+		bool equalPriorityAndOlder =
+				mPriorities[a] == mPriorities[b] && mIds[a] < mIds[b];
+		return greaterPriority || equalPriorityAndOlder;
 	}
 
 	/**
