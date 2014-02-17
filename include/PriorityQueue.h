@@ -8,6 +8,8 @@
 #ifndef PRIORITYQUEUE_H_
 #define PRIORITYQUEUE_H_
 
+#include <memory>
+using std::allocator;
 #include <utility>
 using std::swap;
 
@@ -18,6 +20,7 @@ using std::swap;
 //   following the Java-style interface you listed in the hwk description.
 // - I'm still getting used to pointer/reference/value and error handling.
 //   Any tips or general rules you recommend would be most welcome.
+
 /**
  * A base class for static members that don't depend on the template param
  */
@@ -35,38 +38,38 @@ class PriorityQueue : PriorityQueueBase {
 public:
 
 	//--------------------------------------------------------------------------
-	// INSTANTIATION / COPY SEMANTICS // TODO
+	// INSTANTIATION / COPY SEMANTICS
 	//--------------------------------------------------------------------------
 
 	/// Constructor
+	// TODO handle parameters == 0
 	PriorityQueue(size_t initialCapacity=DEFAULT_INITIAL_CAPACITY,
 				  size_t stepSize=DEFAULT_STEP_SIZE)
-		: mInitialCapacity(initialCapacity),
+		: mItemsAllocator(),
+		  mPrioritiesAllocator(),
+		  mInitialCapacity(initialCapacity),
 		  mStepSize(stepSize),
 		  mStepSize2x(2*mStepSize),
 		  mCapacity(mInitialCapacity),
 		  mSize(0),
-		  mNumResizes(0),
-		  mItemsAllocator(),
-		  mPrioritiesAllocator()
+		  mNumResizes(0)
 	{
 		cout << "PriorityQueue created with capacity " << initialCapacity
 				<< " and stepSize " << stepSize << endl;
 
 		allocateArrays();
-
-		//mItems = new T[mCapacity];
-		//mPriorities = new int[mCapacity];
 	}
 
 	/// Copy Constructor
 	PriorityQueue(PriorityQueue& src)
-		: mInitialCapacity(src.mInitialCapacity),
+		: mItemsAllocator(),
+		  mPrioritiesAllocator(),
+		  mInitialCapacity(src.mInitialCapacity),
 		  mCapacity(src.mCapacity),
+		  mSize(src.mSize),
 		  mStepSize(src.mStepSize),
 		  mStepSize2x(src.mStepSize2x),
-		  mItemsAllocator(),
-		  mPrioritiesAllocator()
+		  mNumResizes(src.mNumResizes)
 	{
 		allocateArrays();
 
@@ -123,19 +126,15 @@ public:
 		swap(first.mInitialCapacity, second.mInitialCapacity);
 		swap(first.mItems, second.mItems);
 		swap(first.mPriorities, second.mPriorities);
+		swap(first.mItemsAllocator, second.mItemsAllocator);
+		swap(first.mPrioritiesAllocator, second.mPrioritiesAllocator);
 		swap(first.mCapacity, second.mCapacity);
 	}
 
 	/// Destructor
 	virtual ~PriorityQueue() {
-		//delete [] mItems;
-		//delete [] mPriorities;
-		for(size_t i = 0; i < mSize; i++) {
-			mItemsAllocator.destroy(mItems + i);
-			mPrioritiesAllocator.destroy(mPriorities + i);
-		}
-		mItemsAllocator.deallocate(mItems, mCapacity);
-		mPrioritiesAllocator.deallocate(mPriorities, mCapacity);
+		destroyAllNodes();
+		deallocateArrays();
 	}
 
 	//--------------------------------------------------------------------------
@@ -151,13 +150,14 @@ public:
 	void insert(T item, int score) {
 		// If we're full, resize up
 		if(mSize == mCapacity) {
-			resize(mSize + mStepSize);
+			resize(mCapacity + mStepSize);
 		}
 
-		// Insert the item at the end and swim it to the top
+		// Insert the item at the end and swim it up to it's place
 		size_t i = mSize;
-		mItems[i] = item;
-		mSize++; // increment size before swim for exception safety (?)
+		mItemsAllocator.construct(mItems+i, item);
+		mPrioritiesAllocator.construct(mPriorities+i, score);
+		mSize++; // increment size before swim for proper state
 		swim(i);
 	}
 
@@ -181,19 +181,21 @@ public:
 	 * a resize operation will occur to shrink the backing data structure.
 	 */
 	void pop() {
-		// Swap the root with the last element
-		swapNodes(0, mSize - 1);
-		mItemsAllocator.destroy(mItems + (mSize - 1));
-		mPrioritiesAllocator.destroy(mPriorities + (mSize - 1));
-		mSize--;
+		if(!empty()) {
+			// Swap the root with the last element
+			swapNodes(0, mSize - 1);
+			destroyNode(mSize-1);
+			mSize--;
 
-		checkSize();
+			// Check if we need to resize
+			checkCapacity();
 
-		// And sink the new root to it's proper place.
-		sink(0);
+			// And sink the new root to it's proper place.
+			sink(0);
 
-		// We do all this to avoid the alternative -- a ~n remove that shifts
-		// all the elements in the array up.
+			// We do all this to avoid the alternative -- a ~n remove that shifts
+			// all the elements in the array up.
+		}
 	}
 
 	/**
@@ -207,6 +209,7 @@ public:
 	 * Removes all items from the container.
 	 */
 	void clear() {
+		destroyAllNodes();
 		mSize = 0;
 		resize(mInitialCapacity);
 	}
@@ -232,105 +235,42 @@ public:
 		return mNumResizes;
 	}
 private:
-	T* mItems; // pointer to array of pointers
+	// Two arrays is more efficient than an array of node container objects.
+	T* mItems;
+	allocator<T> mItemsAllocator;
 	int* mPriorities;
-	/// Do not increment/decrement this! Use `setSize(newSize)`
+	allocator<int> mPrioritiesAllocator;
+
 	size_t mInitialCapacity;
 	size_t mStepSize;
 	size_t mStepSize2x; // cache this for performance
 	size_t mCapacity;
 	size_t mSize;
 	int mNumResizes;
-	std::allocator<T> mItemsAllocator;
-	std::allocator<int> mPrioritiesAllocator;
+
 
 	void allocateArrays() {
-		//mItems = new T[mCapacity];
-		//mPriorities = new int[mCapacity];
 		mItems = mItemsAllocator.allocate(mCapacity);
 		mPriorities = mPrioritiesAllocator.allocate(mCapacity);
 	}
 
-	/**
-	 * Set the size.
-	 */
-	void checkSize() {
-		// remember size_t is unsigned
-		// If we've shrunk enough, resize down to free memory
-		if(mCapacity > mStepSize2x && mSize < (mCapacity - mStepSize2x)) {
-			cout << mSize << " is less than " << (mCapacity - mStepSize2x) << endl;
-
-			// Compute ideal newCapacity
-			size_t newCapacity = mCapacity - mStepSize;
-			cout << "idealCapacity: " << newCapacity << endl;
-
-			// But only resize if newCapacity is greater than initial capacity
-			if(newCapacity >= mInitialCapacity) {
-				resize(newCapacity);
-			}
-		}
-	}
-
-	/**
-	 * Resizes the backing array if necessary.
-	 */
-	void resize(size_t newCapacity) {
-		// Create new array and copy values
-		T* newItems = mItemsAllocator.allocate(newCapacity);
-		int* newPriorities = mPrioritiesAllocator.allocate(newCapacity);
-		for(size_t i=0; i < mSize; i++) {
-			newItems[i] = mItems[i];
-			mItemsAllocator.destroy(mItems+i);
-			newPriorities[i] = mPriorities[i];
-			mPrioritiesAllocator.destroy(mPriorities+i);
-		}
-
-		// delete old array and swap new one in
+	void deallocateArrays() {
 		mItemsAllocator.deallocate(mItems, mCapacity);
 		mPrioritiesAllocator.deallocate(mPriorities, mCapacity);
-		//delete [] mItems;
-		//delete[] mPriorities;
-
-		mItems = newItems;
-		mPriorities = newPriorities;
-
-		// Update state
-		mCapacity = newCapacity;
-		mNumResizes++;
 	}
 
-	/**
-	 * Moves a node **downward** to its proper place to reheapify the heap.
-	 */
-	void sink(size_t i) {
-		bool heapified = false;
-		while(!heapified) {
-			// Check left, then right child for higher priorities
-			if(mPriorities[leftIdxOf(i)] > mPriorities[i]) {
-				swapNodes(leftIdxOf(i), i);
-			} else if(mPriorities[rightIdxOf(i)] > mPriorities[i]) {
-				swapNodes(rightIdxOf(i), i);
-			} else {
-				heapified = true;
-			}
+	void destroyAllNodes() {
+		for(size_t i = 0; i < mSize; i++) {
+			destroyNode(i);
 		}
 	}
 
 	/**
-	 * Moves a node **upward** to its proper place to reheapify the heap.
+	 * Destroys all objects associated with node `i`
 	 */
-	void swim(size_t i) {
-		size_t parentIdx = parentIdxOf(i);
-
-		// While not root and parent has lower priority
-		while(parentIdx >= 0 && mPriorities[parentIdx] < mPriorities[i]) {
-			// Swap value at `i` with parent
-			swapNodes(parentIdx, i);
-
-			// Increment
-			i++;
-			parentIdx = parentIdxOf(i);
-		}
+	void destroyNode(size_t i) {
+		mItemsAllocator.destroy(mItems+i);
+		mPrioritiesAllocator.destroy(mPriorities+i);
 	}
 
 	/**
@@ -342,24 +282,139 @@ private:
 	}
 
 	/**
-	 * Returns the index of the parent of the node at `i`
+	 * Set the size.
 	 */
-	size_t parentIdxOf(size_t i) const {
-		return (i - 1) / 2;
+	void checkCapacity() {
+		// remember size_t is unsigned
+		// If we've shrunk enough, resize down to free memory
+		if(mCapacity >= mStepSize2x && mSize < (mCapacity - mStepSize2x)) {
+
+			//cout << mSize << " is less than " << (mCapacity - mStepSize2x) << endl;
+
+			// Compute ideal newCapacity
+			size_t newCapacity = mCapacity - mStepSize;
+			//cout << "idealCapacity: " << newCapacity << endl;
+
+			if(newCapacity >= mInitialCapacity) {
+				resize(newCapacity);
+			}
+		}
+	}
+
+	void printContents() {
+		cout << "Array contents: " << endl;
+				for (size_t i = 0; i < mSize; i++)
+				    cout << "\t #" << i << ": "
+				    	 << *mItems[i] << " @" << mItems[i]
+				    	 << "/"
+				    	 << mPriorities[i] << endl;
 	}
 
 	/**
-	 * Returns the index of the left child of the node at `i`.
+	 * Resizes the backing array if necessary.
+	 */
+	void resize(size_t newCapacity) {
+		cout << "RESIZING from " << mCapacity << " to " << newCapacity
+				<< " with " << mSize << " items." << endl;
+
+		// Allocate new arrays
+		T* newItems = mItemsAllocator.allocate(newCapacity);
+		int* newPriorities = mPrioritiesAllocator.allocate(newCapacity);
+
+		// Copy/Move values
+		for(size_t i=0; i < mSize; i++) {
+			// Swap item to the new array
+			mItemsAllocator.construct(newItems+i,mItems[i]);
+			mItemsAllocator.destroy(mItems+i);
+
+			// Copy the priority and destroy the original
+			mPrioritiesAllocator.construct(mPriorities+i,mPriorities[i]);
+			mPrioritiesAllocator.destroy(mPriorities+i);
+		}
+
+		// Deallocate old arrays
+		deallocateArrays();
+
+		// update pointers to new arrays
+		mItems = newItems;
+		mPriorities = newPriorities;
+		mCapacity = newCapacity;
+
+		mNumResizes++;
+	}
+
+	/**
+	 * Propagates a node **downward** to its proper place to reheapify the heap.
+	 */
+	void sink(size_t i) {
+		bool heapified = false;
+		while(!heapified) { // While node `i` is out of place
+
+			// Assume node is correctly placed
+			size_t destIdx = i;
+
+			// Get child indexes
+			size_t leftIdx = leftIdxOf(i);
+			size_t rightIdx = rightIdxOf(i);
+
+			// If the right child has greater priority
+			if(mPriorities[rightIdx] > mPriorities[leftIdx]) {
+				destIdx = rightIdx;
+			} else if(mPriorities[leftIdx] > mPriorities[rightIdx]) {
+				// if the left child has greater priority
+				destIdx = leftIdx;
+			}
+
+			// If `i` has greatest priority (or `i` is a leaf)
+			// (Remember leaf nodes return their own index for child indices)
+			if(destIdx == i) {
+				heapified = true;
+			} else {
+				swapNodes(destIdx, i);
+				i = destIdx;
+			}
+		}
+	}
+
+	/**
+	 * Propagates a node **upward** to its proper place to reheapify the heap.
+	 */
+	void swim(size_t i) {
+		size_t parentIdx = parentIdxOf(i);
+
+		// While `i` is not the root and `i`'s parent has lower priority
+		while(parentIdx != i && mPriorities[parentIdx] < mPriorities[i]) {
+			// Swap value at `i` with value at parent
+			swapNodes(parentIdx, i);
+			i = parentIdx;
+			parentIdx = parentIdxOf(i);
+		}
+	}
+
+	/**
+	 * Returns the index of the parent of the node at `i` or `i` if no parent.
+	 */
+	size_t parentIdxOf(size_t i) const {
+		// Remember, size_t is unsigned
+		return (i > 0) ? (i - 1) / 2 : i;
+	}
+
+	/**
+	 * Returns the index of the left child of the node at `i` or `i` if
+	 * node `i` has no children.
 	 */
 	size_t leftIdxOf(size_t i) const {
-		return 2*i+1;
+		size_t idx = 2*i+1;
+		return (idx < mSize) ? idx : i;
 	}
 
 	/*
-	 * Returns the index of the right child of the node at `i`.
+	 * Returns the index of the right child of the node at `i` or `i` if
+	 * node `i` has no children.
 	 */
 	size_t rightIdxOf(size_t i) const {
-		return 2*i+2;
+		size_t idx = 2*i+2;
+		return (idx < mSize) ? idx : i;
 	}
 };
 

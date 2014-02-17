@@ -31,7 +31,7 @@ using std::shared_ptr;
  */
 namespace sportsball {
 
-static const bool DEBUG = true;
+static const bool DEBUG = false;
 static const int MILLIS_PER_SECOND = 1000;
 
 static const string SUB_PLAYER_TOKEN = "GO!";
@@ -90,9 +90,8 @@ int playBall(string dataFile, size_t initialCapacity, size_t stepSize) {
 						// Print their name
 						shared_ptr<string> pName = playerQueue.top();
 						cout << *pName << " enters the game." << endl;
-						// and remove them
 						playerQueue.pop();
-						pName.reset(); // discard our pointer to the string
+						//pName.reset(); // discard our pointer to the string
 					} else {
 						cout << "No one is ready!" << endl;
 					}
@@ -113,7 +112,7 @@ int playBall(string dataFile, size_t initialCapacity, size_t stepSize) {
 
 					if(sportsball::DEBUG) {
 						cout << "Inserting " << *pName << "/"
-							<< priority << "." << endl;
+							<< priority << " (@" << pName << ")" << endl;
 					}
 
 					// Cool. That worked. Now queue the player.
@@ -150,6 +149,7 @@ int playBall(string dataFile, size_t initialCapacity, size_t stepSize) {
 					<< " on line " << (lineNumber + 1) << "." << endl;
 			cout << e.what();
 		}
+		infile.close();
 
 	}
 	return returnVal;
@@ -235,7 +235,7 @@ int main(int argc, const char* argv[]) {
 	// Compute and print elapsed
 	duration<double> elapsed = end-start;
 	double elapsedMillis = elapsed.count() * sportsball::MILLIS_PER_SECOND;
-	cout << "Elapsed " <<  elapsedMillis << "ms.";
+	cout << "Elapsed " <<  elapsedMillis << "ms." << endl;
 
 	return returnVal;
 }
