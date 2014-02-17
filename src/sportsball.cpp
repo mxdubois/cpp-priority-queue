@@ -2,6 +2,9 @@
 using std::cout;
 using std::cin;
 using std::endl;
+#include <iomanip>
+using std::setw;
+using std::setfill;
 #include <string>
 using std::string;
 using std::stoi;
@@ -24,7 +27,7 @@ using std::exception;
 #include <memory>
 using std::shared_ptr;
 
-#include "PriorityQueue.h"
+#include "PriorityQueue.hpp"
 
 /**
  * Functions for running sportsball
@@ -36,6 +39,7 @@ static const int MILLIS_PER_SECOND = 1000;
 
 static const string SUB_PLAYER_TOKEN = "GO!";
 static const char INLINE_DELIMITER = '/';
+static const string TITLE = "SPORTSBALL!";
 
 /**
  * Returns this programs help string.
@@ -55,7 +59,6 @@ string helpstr(string programName) {
 }
 
 int playBall(string dataFile, size_t initialCapacity, size_t stepSize) {
-	cout << "Called sportsball::playBall" << endl;
 	int returnVal = 1;  // pessimism to boot
 
 	// File input based on example here:
@@ -67,7 +70,10 @@ int playBall(string dataFile, size_t initialCapacity, size_t stepSize) {
 		cout << "File could not be opened." << endl;
 		returnVal = 1;
 	} else {
-		cout << "SPORTSBALL!" << endl;
+		int pad = 80 - TITLE.size() - 5;
+		cout << setfill('#') << setw(4) << " "
+				<< TITLE
+				<< " " << setfill('#') <<  setw(pad) << "#" << endl;
 
 		PriorityQueue<shared_ptr<string> >
 			playerQueue(initialCapacity, stepSize);
@@ -80,10 +86,6 @@ int playBall(string dataFile, size_t initialCapacity, size_t stepSize) {
 
 			// For each line in the file
 			while (getline(infile, line)) {
-				if(lineNumber < 10) {
-					lineNumber++;
-					continue;
-				}
 				if(line == SUB_PLAYER_TOKEN) {
 					// If there is a player to poll
 					if(!playerQueue.empty()) {
@@ -132,7 +134,7 @@ int playBall(string dataFile, size_t initialCapacity, size_t stepSize) {
 				lineNumber++; // track line number
 			}
 
-			cout << "---" << endl;
+			cout << setfill('-') << setw(80) << "-" <<endl;
 			cout << "At the end, there were " << playerQueue.getSize()
 					<< " players left." << endl;
 			cout << "The array was resized " << playerQueue.getNumResizes()
@@ -161,7 +163,6 @@ int playBall(string dataFile, size_t initialCapacity, size_t stepSize) {
  * Global, main entry-point.
  */
 int main(int argc, const char* argv[]) {
-	cout << "main called" << endl;
 	// Begin tracking elapsed time
 	// We'll use the C++11 additions for this because it's easiest.
 	// See: http://en.cppreference.com/w/cpp/chrono
@@ -183,7 +184,6 @@ int main(int argc, const char* argv[]) {
 		returnVal =  1;
 
 	} else if(argc >= minArgs && argc <= maxArgs ) {
-		cout << "We got the right number of args" << endl;
 		// We got the right number of args
 		string dataFile = (argv[1]) ? string(argv[1]) : string();
 
@@ -204,11 +204,6 @@ int main(int argc, const char* argv[]) {
 			// Convert c-string to integer
 			stepSize = stoi(argv[3]);
 		}
-
-		cout << "... and parsed them correctly?" << endl;
-		cout << "dataFile: " << dataFile << endl;
-		cout << "initialSize: " << initialCapacity << endl;
-		cout << "stepSize: " << stepSize << endl;
 
 		// Run the game and capture result
 		returnVal = sportsball::playBall(dataFile, initialCapacity, stepSize);

@@ -1,3 +1,3 @@
-src/sportsball.d: ../src/sportsball.cpp ../include/PriorityQueue.h
+src/sportsball.d: ../src/sportsball.cpp ../include/PriorityQueue.hpp
 
-../include/PriorityQueue.h:
+../include/PriorityQueue.hpp:

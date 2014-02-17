@@ -8,7 +8,7 @@
 #ifndef PRIORITYQUEUE_H_
 #define PRIORITYQUEUE_H_
 
-#include <stdexcept>;
+#include <stdexcept>
 using std::runtime_error;
 #include <memory>
 using std::allocator;
@@ -39,6 +39,7 @@ struct PriorityQueueBase {
 /**
  * A Priority Queue implementation.
  */
+// TODO could add alloc to template like STL containers. Awk w/ 3 arrays tho.
 template<class T>
 class PriorityQueue : PriorityQueueBase {
 public:
@@ -61,10 +62,17 @@ public:
 		  mSize(0),
 		  mNumResizes(0)
 	{
-		cout << "PriorityQueue created with capacity " << initialCapacity
-				<< " and stepSize " << stepSize << endl;
+		// If the stepSize is zero, or the first resize would overflow size_t
+		if(stepSize == 0 || stepSize > (MAX_ID - initialCapacity)) {
+			throw out_of_range("Your `stepSize` is stupid.");
+		}
 
 		allocateArrays();
+
+		if(PriorityQueueBase::DEBUG) {
+			cout << "PriorityQueue created with capacity " << initialCapacity
+				 << " and stepSize " << stepSize << endl;
+		}
 	}
 
 	/// Copy Constructor
