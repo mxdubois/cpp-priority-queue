@@ -7,16 +7,14 @@ Dependencies
 ------------
 The project depends on C++11. GCC 4.8+ is recommended.
 
-Build the sportsball example
+sportsball example
 ------------------------------
 I've included the makefile Eclipse generated for me. It is in the `Default` 
 folder. From that directory, you should be able to build it with:
 
     make -f makefile
 
-Running it
-----------
-You'll need to point the program to one of the datafiles in the `data`
+To run the example, you'll need to point the program to one of the datafiles in the `data`
 directory. For example:
 
     sportsball ../data/sportsball1.txt [initialSize] [stepSize]
