@@ -7,8 +7,8 @@ Dependencies
 ------------
 The project depends on C++11. GCC 4.8+ is recommended.
 
-Build
------
+Build the `sportsball` example
+------------------------------
 I've included the makefile Eclipse generated for me. It is in the `Default` 
 folder. From that directory, you should be able to build it with:
 
