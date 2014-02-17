@@ -17,18 +17,12 @@ using std::swap;
 #include <limits>
 using std::numeric_limits;
 
-// NOTES:
-// - I've implemented the class in the header to simplify submission.
-// - I've implemented a subset of the interface defined for the
-//   std::priority_queue. This seemed more appropriate then directly
-//   following the Java-style interface you listed in the hwk description.
-// - I'm still getting used to pointer/reference/value and error handling.
-//   Any tips or general rules you recommend would be most welcome.
+// NOTE: I've implemented the class in the header to simplify submission.
 
 /**
- * A base class for static members that don't depend on the template param
+ * A base class for static members that don't depend on the template parameter.
  */
-struct PriorityQueueBase {
+struct DynamicCollectionBase {
 	// STATIC VARS
 	static const size_t DEFAULT_INITIAL_CAPACITY = 30;
 	static const size_t DEFAULT_STEP_SIZE = 10;
@@ -37,19 +31,47 @@ struct PriorityQueueBase {
 };
 
 /**
- * A Priority Queue implementation.
+ * A dynamically=resized priority queue implementation.
+ *
+ * This priority queue is backed by a triad of heap-sorted arrays for
+ * optimal performance.
+ *
+ * It's recommended that one wrap objects in a smart pointer
+ * (like `std::shared_ptr) before inserting them into the queue.
+ *
+ * Removal from the queue is a 3-step process (as with `std::priority_queue`)
+ *
+ *     if(!myPriorityQueue.empty()) { // check that queue is not empty
+ *         T myObject = myPriorityQueue.top(); // Copy top
+ *         myPriorityQueue.pop(); // Remove and destroy
+ *     }
+ *
+ * This implementation uses std::allocator because
+ *     1. The STL containers use it
+ *     2. It seems to be the best way to destroy an arbitrary object without
+ *        explicitly calling the objects destructor.
+ *
+ * If you're working on this implementation, be careful to use the allocator
+ * correctly. That is, use `allocator.construct(arrayPtr, obj)` (not assignment)
+ * to place items into empty slots in the array. Then be sure to call
+ * `allocator.destroy(arrayPtr+i)` on items before deallocating the array.
+ * There. I've spared you hours of confusion.
  */
-// TODO could add alloc to template like STL containers. Awk w/ 3 arrays tho.
 template<class T>
-class PriorityQueue : PriorityQueueBase {
+class PriorityQueue : DynamicCollectionBase {
 public:
 
 	//--------------------------------------------------------------------------
 	// INSTANTIATION / COPY SEMANTICS
 	//--------------------------------------------------------------------------
 
-	/// Constructor
-	// TODO handle parameters == 0
+	/**
+     * Constructs a PriorityQueue.
+     *
+     * @param initialCapacity - starting size of the backing data structure.
+     * @param stepSize - the size by which the size of the backing data
+     *                   structure is increased when it is full.
+     */
 	PriorityQueue(size_t initialCapacity=DEFAULT_INITIAL_CAPACITY,
 				  size_t stepSize=DEFAULT_STEP_SIZE)
 		: mItemsAllocator(),
@@ -69,13 +91,15 @@ public:
 
 		allocateArrays();
 
-		if(PriorityQueueBase::DEBUG) {
+		if(DynamicCollectionBase::DEBUG) {
 			cout << "PriorityQueue created with capacity " << initialCapacity
 				 << " and stepSize " << stepSize << endl;
 		}
 	}
 
-	/// Copy Constructor
+	/**
+	 * Copy Constructor
+	 */
 	PriorityQueue(PriorityQueue& src)
 		: mItemsAllocator(),
 		  mPrioritiesAllocator(),
@@ -156,7 +180,7 @@ public:
 	}
 
 	//--------------------------------------------------------------------------
-	// METHODS
+	// PUBLIC METHODS
 	//--------------------------------------------------------------------------
 
 	/**
@@ -164,6 +188,12 @@ public:
 	 *
 	 * If `getSize() + 1` exceeds `getCapacity()` at the time of insertion,
 	 * a resize operation will occur, incurring memory allocation time.
+	 *
+	 * This is a `~log n` operation unless the backing data structure
+	 * needs to be resized.
+	 *
+	 * @param item - the item to insert (copied by value)
+	 * @param score - the priority of this item
 	 */
 	void insert(T item, int score) {
 		// If we're full, resize up
@@ -185,6 +215,12 @@ public:
 	/**
 	 * Returns a constant reference to the element with the highest priority.
 	 *
+	 * The highest priority is given to the item with the highest insertion
+	 * `score` and the earliest insertion id. That is, ties are broken by a
+	 * FIFO policy.
+	 *
+	 * This is a constant time operation.
+	 *
 	 * Calling this function on an empty container causes undefined behavior.
 	 */
 	const T& top() const {
@@ -198,8 +234,11 @@ public:
 	 * a copy. Since the removed element is destroyed, it's best to use raw
 	 * or smart pointers.
 	 *
-	 * If `getCapacity() - getSize() < 2*stepSize` at the time of removal,
+	 * If `getSize() < getCapacity() - 2*stepSize` at the time of removal,
 	 * a resize operation will occur to shrink the backing data structure.
+	 *
+	 * This is a `~2log n` operation unless the backing data structure needs to
+	 * be resized.
 	 */
 	void pop() {
 		if(!empty()) {
@@ -256,7 +295,8 @@ public:
 		return mNumResizes;
 	}
 private:
-	// Two arrays is more efficient than an array of node container objects.
+	// Using multiple arrays instead of an array of node container objects
+	// cuts down on memory allocations.
 	T* mItems;
 	allocator<T> mItemsAllocator;
 	int* mPriorities;
@@ -269,22 +309,34 @@ private:
 	size_t mStepSize2x; // cache this for performance
 	size_t mCapacity;
 	size_t mSize;
-	size_t mNextId;
+	size_t mNextId; // the id of the next inserted item
 	int mNumResizes;
 
+	//--------------------------------------------------------------------------
+	// PRIVATE METHODS
+	//--------------------------------------------------------------------------
 
+	/**
+	 * Allocate the backing arrays.
+	 */
 	void allocateArrays() {
 		mItems = mItemsAllocator.allocate(mCapacity);
 		mPriorities = mPrioritiesAllocator.allocate(mCapacity);
 		mIds = mIdsAllocator.allocate(mCapacity);
 	}
 
+	/**
+	 * Deallocate the backing arrays.
+	 */
 	void deallocateArrays() {
 		mItemsAllocator.deallocate(mItems, mCapacity);
 		mPrioritiesAllocator.deallocate(mPriorities, mCapacity);
 		mIdsAllocator.deallocate(mIds, mCapacity);
 	}
 
+	/**
+	 * Destroy all objects associated with all nodes.
+	 */
 	void destroyAllNodes() {
 		for(size_t i = 0; i < mSize; i++) {
 			destroyNode(i);
@@ -300,6 +352,17 @@ private:
 		mIdsAllocator.destroy(mIds+i);
 	}
 
+	/**
+	 * Create a new node at `i`.
+	 *
+	 * Be careful not to call this on an `i` containing an old object that
+	 * has not been destroyed.
+	 *
+	 * @param i - the index of the new node
+	 * @param item - the item stored by the node
+	 * @param priority - the priority of the node
+	 * @param id - the insertion id of the node
+	 */
 	void createNode(size_t i, T item, int priority, size_t id) {
 		mItemsAllocator.construct(mItems+i, item);
 		mPrioritiesAllocator.construct(mPriorities+i, priority);
@@ -307,7 +370,7 @@ private:
 	}
 
 	/**
-	 * Swaps node `a` with node `b` in both the items and priorities array.
+	 * Swaps node `a` with node `b` across all arrays.
 	 */
 	void swapNodes(size_t a, size_t b) {
 		swap(mItems[a], mItems[b]);
@@ -316,7 +379,7 @@ private:
 	}
 
 	/**
-	 * Set the size.
+	 * Check whether or not the backing structure(s) need to be sized down.
 	 */
 	void checkCapacity() {
 		// remember size_t is unsigned
@@ -356,26 +419,32 @@ private:
 	void consolidateIds() {
 		// TODO efficiently sort pointers to items in mIds in an aux array
 		// then iterate through aux and assign 0 <= i < mSize
+		// I don't have time to do this right now. It's an edge case anyway.
 		throw runtime_error(
 				string("PriorityQueue::consolidateIds() has been left") +
 				string(" as an exercise to the reader.") );
 	}
 
+	/**
+	 * Prints the contents of the items array.
+	 *
+	 * Not super useful if the items are pointers, of course.
+	 */
 	void printContents() {
 		cout << "Array contents: " << endl;
 				for (size_t i = 0; i < mSize; i++)
 				    cout << "\t #" << i << ": "
-				    	 << *mItems[i] << " @" << mItems[i]
-				    	 << "/"
-				    	 << mPriorities[i] << endl;
+				    	 << mItems[i] << "/" << mPriorities[i] << endl;
 	}
 
 	/**
 	 * Resizes the backing array if necessary.
+	 *
+	 * @param newCapacity - the capacity to resize to
 	 */
 	void resize(size_t newCapacity) {
 
-		if(PriorityQueueBase::DEBUG) {
+		if(DynamicCollectionBase::DEBUG) {
 			cout << "RESIZING from " << mCapacity << " to " << newCapacity
 					<< " with " << mSize << " items." << endl;
 		}
@@ -407,6 +476,8 @@ private:
 
 	/**
 	 * Propagates a node **downward** to its proper place to reheapify the heap.
+	 *
+	 * @param i - the current index of the node to sink
 	 */
 	void sink(size_t i) {
 		bool heapified = false;
@@ -440,6 +511,8 @@ private:
 
 	/**
 	 * Propagates a node **upward** to its proper place to reheapify the heap.
+	 *
+	 * @param i - the current index of the node to swim.
 	 */
 	void swim(size_t i) {
 		size_t parentIdx = parentIdxOf(i);
@@ -456,11 +529,14 @@ private:
 	/**
 	 * Returns true if `a` has greater priority than `b`
 	 * TODO a max function could be more useful/efficient
+	 *
+	 * @param lhs - the index of the reference node
+	 * @param rhs - the index of the node to test if `lhs` is greater than
 	 */
-	bool greaterPriority(size_t a, size_t b) {
-		bool greaterPriority = mPriorities[a] > mPriorities[b];
+	bool greaterPriority(size_t lhs, size_t rhs) {
+		bool greaterPriority = mPriorities[lhs] > mPriorities[rhs];
 		bool equalPriorityAndOlder =
-				mPriorities[a] == mPriorities[b] && mIds[a] < mIds[b];
+				mPriorities[lhs] == mPriorities[rhs] && mIds[lhs] < mIds[rhs];
 		return greaterPriority || equalPriorityAndOlder;
 	}
 

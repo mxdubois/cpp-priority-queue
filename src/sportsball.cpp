@@ -188,8 +188,8 @@ int main(int argc, const char* argv[]) {
 		string dataFile = (argv[1]) ? string(argv[1]) : string();
 
 		// Defaults
-		size_t initialCapacity = PriorityQueueBase::DEFAULT_INITIAL_CAPACITY;
-		size_t stepSize = PriorityQueueBase::DEFAULT_STEP_SIZE;
+		size_t initialCapacity = DynamicCollectionBase::DEFAULT_INITIAL_CAPACITY;
+		size_t stepSize = DynamicCollectionBase::DEFAULT_STEP_SIZE;
 
 		try {
 
