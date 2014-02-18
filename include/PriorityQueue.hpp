@@ -47,8 +47,9 @@ struct DynamicCollectionBase {
  *     }
  *
  * This implementation uses std::allocator because
- *     1. The STL containers use it
- *     2. It seems to be the best way to destroy an arbitrary object without
+ *
+ * 1. The STL containers use it
+ * 2. It seems to be the best way to destroy an arbitrary object without
  *        explicitly calling the objects destructor.
  *
  * If you're working on this implementation, be careful to use the allocator
@@ -432,9 +433,10 @@ private:
 	 */
 	void printContents() {
 		cout << "Array contents: " << endl;
-				for (size_t i = 0; i < mSize; i++)
+				for (size_t i = 0; i < mSize; i++) {
 				    cout << "\t #" << i << ": "
 				    	 << mItems[i] << "/" << mPriorities[i] << endl;
+				}
 	}
 
 	/**

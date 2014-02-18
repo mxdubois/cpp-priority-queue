@@ -1,5 +1,6 @@
 #include <iostream>
 using std::cout;
+using std::cerr;
 using std::cin;
 using std::endl;
 #include <iomanip>
@@ -8,6 +9,7 @@ using std::setfill;
 #include <string>
 using std::string;
 using std::stoi;
+using std::stoul;
 #include <stdexcept>
 using std::invalid_argument;
 using std::out_of_range;
@@ -52,9 +54,9 @@ string helpstr(string programName) {
 			"\n\tdataFile - string, path to a data file wherein each line " +
 			" contains a space-separated pair of connected node ids" +
 			"\noptional arguments:" +
-			"\n\tinitialCapacity - int, number of elements the queue should" +
+			"\n\tinitialCapacity - size_t, number of elements the queue should" +
 			"should support before the first resize." +
-			"\n\tstepSize - int, number of elements by which to increase the" +
+			"\n\tstepSize - size_t, number of elements by which to increase the" +
 			"size of the queue when the allocated size is exceeded.";
 }
 
@@ -65,24 +67,24 @@ int playBall(string dataFile, size_t initialCapacity, size_t stepSize) {
 	// http://stackoverflow.com/a/7868998
 	std::ifstream infile(dataFile);
 
-	// Fail if we can't open the file.
-	if(!infile.is_open()) {
-		cout << "File could not be opened." << endl;
-		returnVal = 1;
-	} else {
-		int pad = 80 - TITLE.size() - 5;
-		cout << setfill('#') << setw(4) << " "
-				<< TITLE
-				<< " " << setfill('#') <<  setw(pad) << "#" << endl;
+	try {
 
-		PriorityQueue<shared_ptr<string> >
-			playerQueue(initialCapacity, stepSize);
-		string line, priorityString;
-		int priority = 0;
-		int lineNumber = 0;
-		istringstream lineStream;
+		// Fail if we can't open the file.
+		if(!infile.is_open()) {
+			cout << "File could not be opened." << endl;
+			returnVal = 1;
+		} else {
+			int pad = 80 - TITLE.size() - 5;
+			cout << setfill('#') << setw(4) << " "
+					<< TITLE
+					<< " " << setfill('#') <<  setw(pad) << "#" << endl;
 
-		try {
+			PriorityQueue<shared_ptr<string> >
+				playerQueue(initialCapacity, stepSize);
+			string line, priorityString;
+			int priority = 0;
+			int lineNumber = 0;
+			istringstream lineStream;
 
 			// For each line in the file
 			while (getline(infile, line)) {
@@ -109,8 +111,20 @@ int playBall(string dataFile, size_t initialCapacity, size_t stepSize) {
 					getline(lineStream, priorityString);
 
 					// Attempt to convert `priorityString` to an int
-					// (we catch exceptions further down)
-					priority = stoi(priorityString);
+					try {
+						priority = stoi(priorityString);
+					} catch(invalid_argument& e) {
+						cout << "There was a problem reading in the priority"
+								<< " on line "
+								<< (lineNumber + 1) << "." << endl;
+						throw e; // we catch invalid_argument again later
+					} catch (out_of_range& e) {
+						cout << "There was a problem reading in the priority"
+								<< " on line "
+								<< (lineNumber + 1) << "." << endl;
+
+						throw e; // we catch out_of_range again later
+					}
 
 					if(sportsball::DEBUG) {
 						cout << "Inserting " << *pName << "/"
@@ -141,19 +155,16 @@ int playBall(string dataFile, size_t initialCapacity, size_t stepSize) {
 					<< " times." << endl;
 
 			returnVal = 0;
-
-		} catch(invalid_argument& e) {
-			cout << "There was a problem reading in the priority"
-					<< " on line " << (lineNumber + 1) << "." << endl;
-			cout << e.what();
-		} catch (out_of_range& e) {
-			cout << "There was a problem reading in the priority"
-					<< " on line " << (lineNumber + 1) << "." << endl;
-			cout << e.what();
 		}
-		infile.close();
 
+	} catch(invalid_argument& e) {
+		cout << "Error:" << e.what() << endl;
+	} catch (out_of_range& e) {
+		cout << "Error: " << e.what() << endl;
 	}
+
+	infile.close();
+
 	return returnVal;
 }
 
@@ -188,33 +199,40 @@ int main(int argc, const char* argv[]) {
 		string dataFile = (argv[1]) ? string(argv[1]) : string();
 
 		// Defaults
-		size_t initialCapacity = DynamicCollectionBase::DEFAULT_INITIAL_CAPACITY;
-		size_t stepSize = DynamicCollectionBase::DEFAULT_STEP_SIZE;
+		long initialSize = DynamicCollectionBase::DEFAULT_INITIAL_CAPACITY;
+		long stepSize = DynamicCollectionBase::DEFAULT_STEP_SIZE;
 
 		try {
 
-		// Override defaults with user input.
-		// Although the priority queue uses size_t, we limit user input
-		// to the int range for this implementation
-		if(argc >= 3) {
-			// Convert c-string to integer
-			initialCapacity = stoi(argv[2]);
-		}
-		if(argc >= 4) {
-			// Convert c-string to integer
-			stepSize = stoi(argv[3]);
-		}
+			// Override defaults with user input.
+			// Although the priority queue uses size_t, we'll limit user input
+			// to the positive half of long
+			if(argc >= 3) {
+				// Convert c-string to integer
+				initialSize = std::stol(argv[2]);
+			}
+			if(argc >= 4) {
+				// Convert c-string to integer
+				stepSize = std::stol(argv[3]);
+			}
 
-		// Run the game and capture result
-		returnVal = sportsball::playBall(dataFile, initialCapacity, stepSize);
+			// Since most users don't intend to underflow,
+			// we'll force and exception for negative numbers
+			if(stepSize < 0 || initialSize < 0)
+				throw out_of_range(
+						string("Received negative number for an") +
+						string(" unsigned parameter."));
+
+			// Run the game and capture result
+			returnVal = sportsball::playBall(dataFile, initialSize, stepSize);
+
 		} catch(invalid_argument& e) {
-			cout << "You entered a non-integer value for an integer parameter."
+			cout << "You entered a non-numeric value for a numeric parameter."
 					<< endl;
-			cout << e.what();
+			cout << "Error: " << e.what() << endl;
 		} catch (out_of_range& e) {
-			cout << "You entered a value outside the `int` range for "
-					<< " an integer parameter."<< endl;
-			cout << e.what();
+			cout << "You entered an out of range value." << endl;
+			cout << "Error: " << e.what() << endl;
 		}
 
 	} else {

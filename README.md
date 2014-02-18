@@ -1,5 +1,5 @@
 cpp-priority-queue
-==========
+==================
 
 A toy implementation of a priority queue in C++. See "About the PriorityQueue" below for details.
 
