@@ -3,6 +3,11 @@ cpp-priority-queue
 
 A toy implementation of a priority queue in C++. See "About the PriorityQueue" below for details.
 
+Notes
+-----
+You'll find the `PriorityQueue` implemented in the header, 
+`include/PrioritiyQueue.hpp`
+
 Dependencies
 ------------
 The project depends on C++11. GCC 4.8+ is recommended.
