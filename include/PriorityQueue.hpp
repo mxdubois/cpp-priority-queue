@@ -17,8 +17,6 @@ using std::swap;
 #include <limits>
 using std::numeric_limits;
 
-// NOTE: I've implemented the class in the header to simplify submission.
-
 /**
  * A base class for static members that don't depend on the template parameter.
  */
