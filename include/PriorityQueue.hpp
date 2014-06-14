@@ -18,7 +18,8 @@ using std::swap;
 using std::numeric_limits;
 
 /**
- * A base class for static members that don't depend on the template parameter.
+ * A base class for dynamically-resized containers.
+ * These static members don't depend on the template parameter.
  */
 struct DynamicCollectionBase {
 	// Default starting capacity
