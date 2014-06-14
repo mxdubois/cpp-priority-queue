@@ -68,7 +68,7 @@ public:
 	// INSTANTIATION / COPY SEMANTICS
 	//--------------------------------------------------------------------------
 
-	/**
+     /**
      * Constructs a PriorityQueue.
      *
      * @param initialCapacity - starting size of the backing data structure.
