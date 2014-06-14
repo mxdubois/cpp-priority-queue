@@ -21,15 +21,18 @@ using std::numeric_limits;
  * A base class for static members that don't depend on the template parameter.
  */
 struct DynamicCollectionBase {
-	// STATIC VARS
+	// Default starting capacity
 	static const size_t DEFAULT_INITIAL_CAPACITY = 30;
+	// Default amount to increment capacity during automatic resizing
 	static const size_t DEFAULT_STEP_SIZE = 10;
+	// The maximum id assigned to contained items. 
+	// Ids are assigned in order of insertion and used to break priority ties.
 	static const size_t MAX_ID = numeric_limits<size_t>::max();
 	static const bool DEBUG = false;
 };
 
 /**
- * A dynamically=resized priority queue implementation.
+ * A dynamically-resized priority queue implementation.
  *
  * This priority queue is backed by a triad of heap-sorted arrays for
  * optimal performance.
